@@ -11,17 +11,19 @@ c.execute("""CREATE TABLE IF NOT EXISTS Agendamentos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     data TEXT NOT NULL,
     hora TEXT NOT NULL,
-    servico TEXT NOT NULL,s
+    servico TEXT NOT NULL,
     nome_cliente TEXT NOT NULL,
     telefone TEXT,
-    email TEXT
+    email TEXT,
+    pago TEXT,
+    cancelado TEXT
 )""")
 conn.commit()
 
 # Função para salvar agendamento
-def salvar_agendamento(data, hora, servico, nome_cliente, telefone, email):
-    c.execute("""INSERT INTO Agendamentos (data, hora, servico, nome_cliente, telefone, email)
-                 VALUES (?,?,?,?,?,?)""", (data, hora, servico, nome_cliente, telefone, email))
+def salvar_agendamento(data, hora, servico, nome_cliente, telefone, email, pago):
+    c.execute("""INSERT INTO Agendamentos (data, hora, servico, nome_cliente, telefone, email, pago, cancelado)
+                 VALUES (?,?,?,?,?,?,?,?)""", (data, hora, servico, nome_cliente, telefone, email, pago, "Não"))
     conn.commit()
 
 # Função para consultar agendamentos
@@ -29,11 +31,19 @@ def consultar_agendamentos():
     c.execute("SELECT * FROM Agendamentos")
     return c.fetchall()
 
+# Função para cancelar agendamento
+def cancelar_agendamento(id_agendamento):
+    c.execute("UPDATE Agendamentos SET cancelado = 'Sim' WHERE id =?", (id_agendamento,))
+    conn.commit()
+
 # Interface de Usuário
-st.title("Agenda - Studio Sabrina Azeredo 💅")
+st.title("Agenda - Studio Sabrina Azeredo ")
 
 # Opções de Serviço
 servicos = ["Manicure Básica", "Pedicure Completo", "Banho de Gel", "Design de Unha Personalizado"]
+
+# Opções de Pagamento
+pago_opcoes = ["Sim", "Não"]
 
 # Formulário de Agendamento
 with st.form("agendamento"):
@@ -44,10 +54,11 @@ with st.form("agendamento"):
     nome_cliente = st.text_input("Nome do Cliente")
     telefone_cliente = st.text_input("Telefone do Cliente")
     email_cliente = st.text_input("E-mail do Cliente")
+    pago_escolhido = st.selectbox("Já está pago?", pago_opcoes)
     submitted = st.form_submit_button("Agendar")
 
     if submitted:
-        salvar_agendamento(data_agendamento, hora_agendamento, servico_escolhido, nome_cliente, telefone_cliente, email_cliente)
+        salvar_agendamento(data_agendamento, hora_agendamento, servico_escolhido, nome_cliente, telefone_cliente, email_cliente, pago_escolhido)
         st.success("Agendamento Realizado com Sucesso!")
 
 # Exibir Agendamentos
@@ -55,8 +66,15 @@ st.title("Agendamentos Realizados")
 if st.button("Consultar Agendamentos"):
     resultados = consultar_agendamentos()
     if resultados:
-        df = pd.DataFrame(resultados, columns=["ID", "Data", "Hora", "Serviço", "Nome do Cliente", "Telefone", "E-mail"])
+        df = pd.DataFrame(resultados, columns=["ID", "Data", "Hora", "Serviço", "Nome do Cliente", "Telefone", "E-mail", "Pago", "Cancelado"])
         st.write(df)
+        
+        # Adicionar botão para cancelar agendamento
+        for index, row in df.iterrows():
+            if row["Cancelado"] == "Não":
+                if st.button(f"Cancelar Agendamento {row['ID']}"):
+                    cancelar_agendamento(row["ID"])
+                    st.success(f"Agendamento {row['ID']} cancelado com sucesso!")
     else:
         st.write("Nenhum agendamento realizado até o momento.")
 
