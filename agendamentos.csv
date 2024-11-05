@@ -1,1 +1,1 @@
-id,data,hora,servico,nome_cliente,telefone,pago,cancelado,manutenção
+id,data,hora,servico,nome,telefone,pago,manutenção
