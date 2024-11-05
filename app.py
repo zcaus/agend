@@ -1,39 +1,48 @@
 import streamlit as st
-import sqlite3
+import csv
 import pandas as pd
 
-# Conectar ao banco de dados (será recriado se não existir)
-conn = sqlite3.connect('database.db')
-c = conn.cursor()
+# Definir o nome do arquivo CSV
+arquivo_csv = 'agendamentos.csv'
 
-# Criar tabela Agendamentos se não existir
-c.execute("""CREATE TABLE IF NOT EXISTS Agendamentos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    data TEXT NOT NULL,
-    hora TEXT NOT NULL,
-    servico TEXT NOT NULL,s
-    nome_cliente TEXT NOT NULL,
-    telefone TEXT,
-    email TEXT
-)""")
-conn.commit()
+# Criar um cabeçalho para o arquivo CSV se ele estiver vazio
+try:
+    pd.read_csv(arquivo_csv)
+except pd.errors.EmptyDataError:
+    with open(arquivo_csv, 'w') as arquivo:
+        arquivo.write("id,data,hora,servico,nome_cliente,telefone,email,pago,cancelado\n")
 
-# Função para salvar agendamento
-def salvar_agendamento(data, hora, servico, nome_cliente, telefone, email):
-    c.execute("""INSERT INTO Agendamentos (data, hora, servico, nome_cliente, telefone, email)
-                 VALUES (?,?,?,?,?,?)""", (data, hora, servico, nome_cliente, telefone, email))
-    conn.commit()
+# Função para ler agendamentos do arquivo CSV
+def ler_agendamentos():
+    try:
+        return pd.read_csv(arquivo_csv)
+    except FileNotFoundError:
+        return pd.DataFrame(columns=['id', 'data', 'hora','servico', 'nome_cliente', 'telefone', 'email', 'pago', 'cancelado'])
 
-# Função para consultar agendamentos
-def consultar_agendamentos():
-    c.execute("SELECT * FROM Agendamentos")
-    return c.fetchall()
+# Função para salvar agendamento no arquivo CSV
+def salvar_agendamento(agendamento):
+    agendamentos = ler_agendamentos()
+    if agendamentos.empty:
+        agendamento['id'] = 1
+    else:
+        agendamento['id'] = agendamentos['id'].max() + 1
+    agendamentos = agendamentos._append(agendamento, ignore_index=True)
+    agendamentos.to_csv(arquivo_csv, index=False)
+
+# Função para cancelar agendamento no arquivo CSV
+def cancelar_agendamento(id_agendamento):
+    agendamentos = ler_agendamentos()
+    agendamentos.loc[agendamentos['id'] == id_agendamento, 'cancelado'] = 'Sim'
+    agendamentos.to_csv(arquivo_csv, index=False)
 
 # Interface de Usuário
-st.title("Agenda - Studio Sabrina Azeredo 💅")
+st.title("Agenda - Studio Sabrina Azeredo ")
 
 # Opções de Serviço
 servicos = ["Manicure Básica", "Pedicure Completo", "Banho de Gel", "Design de Unha Personalizado"]
+
+# Opções de Pagamento
+pago_opcoes = ["Sim", "Não"]
 
 # Formulário de Agendamento
 with st.form("agendamento"):
@@ -44,29 +53,35 @@ with st.form("agendamento"):
     nome_cliente = st.text_input("Nome do Cliente")
     telefone_cliente = st.text_input("Telefone do Cliente")
     email_cliente = st.text_input("E-mail do Cliente")
+    pago_escolhido = st.selectbox("Já está pago?", pago_opcoes)
     submitted = st.form_submit_button("Agendar")
 
     if submitted:
-        salvar_agendamento(data_agendamento, hora_agendamento, servico_escolhido, nome_cliente, telefone_cliente, email_cliente)
+        agendamento = {
+            'data': data_agendamento,
+            'hora': hora_agendamento,
+           'servico': servico_escolhido,
+            'nome_cliente': nome_cliente,
+            'telefone': telefone_cliente,
+            'email': email_cliente,
+            'pago': pago_escolhido,
+            'cancelado': 'Não'
+        }
+        salvar_agendamento(agendamento)
         st.success("Agendamento Realizado com Sucesso!")
 
 # Exibir Agendamentos
 st.title("Agendamentos Realizados")
 if st.button("Consultar Agendamentos"):
-    resultados = consultar_agendamentos()
-    if resultados:
-        df = pd.DataFrame(resultados, columns=["ID", "Data", "Hora", "Serviço", "Nome do Cliente", "Telefone", "E-mail"])
-        st.write(df)
+    agendamentos = ler_agendamentos()
+    if not agendamentos.empty:
+        st.write(agendamentos)
+        
+        # Adicionar botão para cancelar agendamento
+        for index, row in agendamentos.iterrows():
+            if row["cancelado"] == "Não":
+                if st.button(f"Cancelar Agendamento {row['id']}"):
+                    cancelar_agendamento(row["id"])
+                    st.success(f"Agendamento {row['id']} cancelado com sucesso!")
     else:
         st.write("Nenhum agendamento realizado até o momento.")
-
-# Fechar conexão com o banco de dados quando a aplicação for fechada
-try:
-    # Código da aplicação aqui
-    st.write("")
-    
-finally:
-    # Fechar a conexão após a aplicação ser encerrada
-    if conn:
-        conn.close()
-        st.write("")
